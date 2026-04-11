@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Alosh2/.claude/projects/c--Users-Alosh2-Desktop-crm/21c45250-5dcd-4220-a4ed-2f9cd7d8a63b/tool-results/**)",
+      "Bash(wc -l /c/Users/Alosh2/Desktop/crm/js/*.js)",
+      "Bash(node -e ':*)",
+      "Bash(grep -h \"^async function \\\\|^function \" /c/Users/Alosh2/Desktop/crm/js/*.js)",
+      "Bash(grep -rh \"^async function \\\\|^function \" /c/Users/Alosh2/Desktop/crm/js/*.js)",
+      "Bash(wc -l /c/Users/Alosh2/Desktop/crm/js/*.js /c/Users/Alosh2/Desktop/crm/css/*.css /c/Users/Alosh2/Desktop/crm/index.html)",
+      "Bash(sed -i 's/ر\\\\.س/₪/g' /c/Users/Alosh2/Desktop/crm/js/app.js)",
+      "Bash(sed -i 's/ر\\\\.س/₪/g' /c/Users/Alosh2/Desktop/crm/js/dashboard.js)",
+      "Bash(sed -i 's/ر\\\\.س/₪/g' /c/Users/Alosh2/Desktop/crm/js/customers.js)",
+      "Bash(sed -i 's/ر\\\\.س/₪/g' /c/Users/Alosh2/Desktop/crm/js/sales.js)",
+      "Bash(sed -i 's/ر\\\\.س/₪/g' /c/Users/Alosh2/Desktop/crm/js/reports.js)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\('./server.js'\\)\")",
+      "Bash(kill %1)"
+    ]
+  }
+}

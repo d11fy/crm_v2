@@ -1,0 +1,25 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# WhatsApp session (لا ترفعها — تحتوي على جلستك الشخصية)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# بيانات حساسة
+.env
+.env.local
+.env.production
+
+# نظام التشغيل
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# محرر الكود
+.vscode/
+.idea/
+
+# ملفات مؤقتة
+*.log
+*.tmp

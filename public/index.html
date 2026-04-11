@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظام إدارة الاشتراكات</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     صفحة تسجيل الدخول
+═══════════════════════════════════════════════════ -->
+<div id="loginPage" class="login-wrapper">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-icon"><i class="fas fa-store"></i></div>
+      <h1>متجر الاشتراكات</h1>
+      <p>نظام إدارة العملاء والاشتراكات</p>
+    </div>
+    <form id="loginForm" autocomplete="off" novalidate>
+      <div class="form-group">
+        <label><i class="fas fa-user"></i> اسم المستخدم</label>
+        <input type="text" id="loginUsername" placeholder="أدخل اسم المستخدم" required />
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-lock"></i> كلمة المرور</label>
+        <div class="input-wrap">
+          <input type="password" id="loginPassword" placeholder="أدخل كلمة المرور" required />
+          <button type="button" class="toggle-pass" tabindex="-1" onclick="togglePasswordVisibility()">
+            <i class="fas fa-eye" id="passEyeIcon"></i>
+          </button>
+        </div>
+      </div>
+      <div id="loginError" class="alert alert-danger hidden"></div>
+      <button type="submit" id="loginBtn" class="btn btn-primary btn-block btn-lg">
+        <i class="fas fa-sign-in-alt"></i> تسجيل الدخول
+      </button>
+    </form>
+    <p class="login-hint">
+      <i class="fas fa-info-circle"></i>
+      المدير: <strong>admin</strong> / <strong>admin123</strong> &nbsp;|&nbsp;
+      الموظف: <strong>employee</strong> / <strong>emp123</strong>
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     التطبيق الرئيسي
+═══════════════════════════════════════════════════ -->
+<div id="mainApp" class="app-wrapper hidden">
+
+  <!-- Overlay for mobile sidebar -->
+  <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- ─── الشريط الجانبي ─── -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-brand">
+      <i class="fas fa-store"></i>
+      <span>متجر الاشتراكات</span>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-ava"><i class="fas fa-user-circle"></i></div>
+      <div>
+        <strong id="userDisplayName">—</strong>
+        <span id="userDisplayRole" class="role-tag">—</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-page="dashboard">
+        <i class="fas fa-tachometer-alt"></i><span>لوحة التحكم</span>
+      </a>
+      <a class="nav-item" data-page="customers">
+        <i class="fas fa-users"></i><span>العملاء</span>
+      </a>
+      <a class="nav-item" data-page="sales">
+        <i class="fas fa-cash-register"></i><span>تسجيل مبيعات</span>
+      </a>
+      <a class="nav-item" data-page="reports">
+        <i class="fas fa-chart-bar"></i><span>التقارير</span>
+      </a>
+      <a class="nav-item" data-page="reminders">
+        <i class="fas fa-bell"></i><span>التذكيرات</span>
+        <span id="reminderNavBadge" class="nav-badge hidden">0</span>
+      </a>
+      <a class="nav-item admin-only" data-page="settings">
+        <i class="fas fa-cog"></i><span>الإعدادات</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="logoutBtn" class="logout-btn">
+        <i class="fas fa-sign-out-alt"></i><span>تسجيل الخروج</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ─── منطقة المحتوى ─── -->
+  <div class="content-area">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <button id="menuToggle" class="icon-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <h2 id="pageHeading">لوحة التحكم</h2>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="notifBtn" title="التذكيرات" onclick="navigateTo('reminders')">
+          <i class="fas fa-bell"></i>
+          <span id="notifBadge" class="notif-dot hidden">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ════════════════════ PAGES ════════════════════ -->
+
+    <!-- ── لوحة التحكم ── -->
+    <div id="dashboardPage" class="page hidden">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-users"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="statActive">0</div>
+            <div class="stat-lbl">عملاء نشطون</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-receipt"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="statTodaySales">0</div>
+            <div class="stat-lbl">مبيعات اليوم</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><i class="fas fa-money-bill-wave"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="statTodayRevenue">0 ₪</div>
+            <div class="stat-lbl">إيرادات اليوم</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon teal"><i class="fas fa-chart-line"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="statTodayProfit">0 ₪</div>
+            <div class="stat-lbl">أرباح اليوم</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><i class="fas fa-hourglass-half"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="statExpiring">0</div>
+            <div class="stat-lbl">تنتهي خلال 7 أيام</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="statExpired">0</div>
+            <div class="stat-lbl">اشتراكات منتهية</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <!-- مخطط المبيعات -->
+        <div class="card">
+          <div class="card-head">
+            <h3><i class="fas fa-chart-bar"></i> أرباح آخر 7 أيام</h3>
+          </div>
+          <div class="card-body chart-wrap">
+            <canvas id="salesChart"></canvas>
+          </div>
+        </div>
+        <!-- دونات الأرباح -->
+        <div class="card">
+          <div class="card-head">
+            <h3><i class="fas fa-chart-pie"></i> توزيع الأرباح</h3>
+          </div>
+          <div class="card-body chart-wrap">
+            <canvas id="profitDonut"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid dash-grid-2 mt-5">
+        <!-- الاشتراكات المنتهية قريباً -->
+        <div class="card">
+          <div class="card-head">
+            <h3><i class="fas fa-clock text-orange"></i> تنتهي قريباً</h3>
+          </div>
+          <div class="card-body" id="expiringList">
+            <div class="loading-spin"><div class="spinner"></div></div>
+          </div>
+        </div>
+        <!-- آخر المبيعات -->
+        <div class="card">
+          <div class="card-head">
+            <h3><i class="fas fa-shopping-bag text-green"></i> آخر المبيعات</h3>
+          </div>
+          <div class="card-body" id="recentSales">
+            <div class="loading-spin"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /dashboardPage -->
+
+    <!-- ── صفحة العملاء ── -->
+    <div id="customersPage" class="page hidden">
+      <div class="page-actions">
+        <div class="search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="customerSearch" placeholder="بحث بالاسم أو الواتساب…" />
+        </div>
+        <select id="customerStatusFilter" class="select-input">
+          <option value="all">كل الحالات</option>
+          <option value="active">نشط</option>
+          <option value="expired">منتهي</option>
+          <option value="cancelled">ملغي</option>
+        </select>
+        <button class="btn btn-outline" onclick="exportCustomersCSV()">
+          <i class="fas fa-file-csv"></i> تصدير CSV
+        </button>
+        <button class="btn btn-primary" onclick="openAddOrder()">
+          <i class="fas fa-plus-circle"></i> إضافة طلب جديد
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>واتساب</th>
+                <th>الاشتراكات</th>
+                <th>الحالة</th>
+                <th>أقرب انتهاء</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="customersBody">
+              <tr><td colspan="6" class="empty-msg">جارٍ التحميل…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /customersPage -->
+
+    <!-- ── صفحة تسجيل المبيعات ── -->
+    <div id="salesPage" class="page hidden">
+      <p class="page-hint">
+        <i class="fas fa-info-circle"></i>
+        اضغط على أي اشتراك لتسجيل بيع جديد أو تجديد اشتراك عميل
+      </p>
+      <div id="saleCards" class="sale-cards-grid">
+        <div class="loading-spin"><div class="spinner"></div></div>
+      </div>
+
+      <div class="card mt-5">
+        <div class="card-head">
+          <h3><i class="fas fa-history"></i> آخر المبيعات</h3>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ والوقت</th>
+                <th>العميل</th>
+                <th>نوع الاشتراك</th>
+                <th>سعر البيع</th>
+                <th>التكلفة</th>
+                <th>الربح</th>
+              </tr>
+            </thead>
+            <tbody id="recentSalesBody">
+              <tr><td colspan="6" class="empty-msg">لا توجد مبيعات بعد</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /salesPage -->
+
+    <!-- ── صفحة التقارير ── -->
+    <div id="reportsPage" class="page hidden">
+      <div class="report-toolbar">
+        <select id="reportPeriod" class="select-input">
+          <option value="today">اليوم</option>
+          <option value="week">آخر 7 أيام</option>
+          <option value="month" selected>هذا الشهر</option>
+          <option value="year">هذا العام</option>
+          <option value="custom">فترة مخصصة</option>
+        </select>
+        <div id="customDateRange" class="custom-range hidden">
+          <input type="date" id="reportFrom" class="input-field" />
+          <span>إلى</span>
+          <input type="date" id="reportTo" class="input-field" />
+        </div>
+        <button class="btn btn-primary" onclick="loadReports()">
+          <i class="fas fa-sync"></i> تحديث
+        </button>
+        <button class="btn btn-outline" onclick="exportReportsCSV()">
+          <i class="fas fa-file-csv"></i> تصدير CSV
+        </button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-money-bill-wave"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="reportRevenue">0 ₪</div>
+            <div class="stat-lbl">إجمالي الإيرادات</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><i class="fas fa-minus-circle"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="reportCost">0 ₪</div>
+            <div class="stat-lbl">إجمالي التكاليف</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon teal"><i class="fas fa-chart-line"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="reportProfit">0 ₪</div>
+            <div class="stat-lbl">صافي الأرباح</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><i class="fas fa-receipt"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="reportCount">0</div>
+            <div class="stat-lbl">عدد المبيعات</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><i class="fas fa-percentage"></i></div>
+          <div class="stat-body">
+            <div class="stat-val" id="reportMargin">0%</div>
+            <div class="stat-lbl">هامش الربح</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-5">
+        <div class="card-head"><h3><i class="fas fa-chart-area"></i> مخطط الإيرادات والأرباح</h3></div>
+        <div class="card-body chart-wrap">
+          <canvas id="reportChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card mt-5">
+        <div class="card-head"><h3><i class="fas fa-table"></i> تفاصيل المبيعات</h3></div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>العميل</th>
+                <th>نوع الاشتراك</th>
+                <th>سعر البيع</th>
+                <th>السعر الأصلي</th>
+                <th>التكلفة</th>
+                <th>الربح</th>
+                <th>إيميل التفعيل</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody">
+              <tr><td colspan="8" class="empty-msg">اختر فترة زمنية</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /reportsPage -->
+
+    <!-- ── صفحة التذكيرات ── -->
+    <div id="remindersPage" class="page hidden">
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="WhatsApp.checkExpiringSubscriptions().then(loadRemindersPage)">
+          <i class="fas fa-sync"></i> تحديث التذكيرات
+        </button>
+        <button class="btn btn-success" onclick="sendAllReminders()">
+          <i class="fab fa-whatsapp"></i> إرسال الكل
+        </button>
+      </div>
+      <div id="remindersContent">
+        <div class="loading-spin"><div class="spinner"></div></div>
+      </div>
+    </div><!-- /remindersPage -->
+
+    <!-- ── صفحة الإعدادات (للمدير فقط) ── -->
+    <div id="settingsPage" class="page hidden">
+
+      <!-- أنواع الاشتراكات -->
+      <div class="settings-section">
+        <div class="section-head">
+          <h3><i class="fas fa-tags"></i> أنواع الاشتراكات</h3>
+          <button class="btn btn-primary btn-sm" onclick="openAddSubType()">
+            <i class="fas fa-plus"></i> إضافة نوع
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>المدة</th>
+                  <th>سعر التكلفة</th>
+                  <th>سعر البيع</th>
+                  <th>الربح</th>
+                  <th>الحالة</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="subTypesBody">
+                <tr><td colspan="7" class="empty-msg">جارٍ التحميل…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- إدارة المستخدمين -->
+      <div class="settings-section">
+        <div class="section-head">
+          <h3><i class="fas fa-users-cog"></i> إدارة المستخدمين</h3>
+          <button class="btn btn-primary btn-sm" onclick="openAddUser()">
+            <i class="fas fa-user-plus"></i> إضافة مستخدم
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>اسم المستخدم</th>
+                  <th>الدور</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="usersBody">
+                <tr><td colspan="4" class="empty-msg">جارٍ التحميل…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- الإعدادات العامة -->
+      <div class="settings-section">
+        <div class="section-head">
+          <h3><i class="fas fa-sliders-h"></i> الإعدادات العامة</h3>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label><i class="fas fa-store"></i> اسم المتجر</label>
+                <input type="text" id="settingStoreName" placeholder="متجري" />
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-link"></i> رابط التجديد</label>
+                <input type="text" id="settingRenewLink" placeholder="https://wa.me/…" />
+              </div>
+            </div>
+
+            <!-- Google Sheets -->
+            <div class="integration-box">
+              <div class="integration-title">
+                <i class="fas fa-table text-green"></i>
+                Google Sheets — النسخ الاحتياطي التلقائي
+              </div>
+              <div class="integration-steps">
+                <p><strong>خطوات الإعداد:</strong></p>
+                <ol>
+                  <li>أنشئ ملف Google Sheet جديد</li>
+                  <li>من القائمة: <strong>Extensions → Apps Script</strong></li>
+                  <li>احذف الكود الموجود والصق كود Apps Script الموجود في <code>js/sheets.js</code></li>
+                  <li>اضغط <strong>Deploy → New deployment → Web app</strong></li>
+                  <li>اختر: <em>Execute as: Me</em> — <em>Who has access: Anyone</em></li>
+                  <li>انسخ الـ URL وضعه في الحقل أدناه</li>
+                </ol>
+              </div>
+              <div class="form-group">
+                <label><i class="fas fa-link"></i> رابط Apps Script</label>
+                <div class="input-row">
+                  <input type="url" id="settingSheetsUrl" placeholder="https://script.google.com/macros/s/…/exec" />
+                  <button class="btn btn-outline btn-sm" onclick="testSheetsConnection()">
+                    <i class="fas fa-plug"></i> اختبار
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- WhatsApp Auto Server -->
+            <div class="integration-box wa-integration-box">
+              <div class="integration-title">
+                <i class="fab fa-whatsapp text-whatsapp"></i>
+                واتساب تلقائي — مسح QR وإرسال فوري
+                <span id="waBadge" style="font-size:.75rem;font-weight:600;margin-right:auto;color:var(--primary)">● جارٍ التشغيل...</span>
+              </div>
+
+              <!-- بطاقة حالة الاتصال + QR -->
+              <div id="waStatusCard" class="wa-status-card">
+                <div class="wa-status-inner">
+                  <div id="waQrSection">
+                    <div class="spinner" style="margin:0 auto 1rem"></div>
+                    <p style="color:var(--text-muted);font-size:.85rem;text-align:center">جارٍ فحص السيرفر...</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="integration-steps">
+                <p><strong>خطوات التشغيل:</strong></p>
+                <ol>
+                  <li>انقر نقرتين على <code>start.bat</code> لتشغيل النظام</li>
+                  <li>سيفتح المتصفح تلقائياً على <code>http://localhost:3001</code></li>
+                  <li>سجّل الدخول ثم افتح <strong>الإعدادات ← واتساب</strong></li>
+                  <li>امسح QR Code الذي يظهر هنا بهاتفك من:<br>
+                      <strong>واتساب ← الأجهزة المرتبطة ← ربط جهاز</strong></li>
+                  <li>بعد الربط، التذكيرات ستُرسل <strong>تلقائياً لكل العملاء</strong> ✅</li>
+                </ol>
+                <p class="hint-note">
+                  <i class="fas fa-info-circle"></i>
+                  البوت يبقى متصلاً طالما start.bat يعمل — يُرسِل لجميع العملاء قبل يوم أو 3 أيام من انتهاء الاشتراك.
+                </p>
+              </div>
+
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+                <button class="btn btn-success btn-sm" onclick="triggerSchedulerNow()" title="إرسال فوري لكل العملاء المنتهية اشتراكاتهم قريباً">
+                  <i class="fas fa-paper-plane"></i> إرسال التذكيرات الآن
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="clearReminderLog()" title="امسح سجل الإرسال لتتمكن من إرسال تذكيرات الاختبار مرة أخرى">
+                  <i class="fas fa-redo"></i> إعادة تعيين السجل
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="previewReminderMsg()">
+                  <i class="fas fa-eye"></i> معاينة الرسالة
+                </button>
+              </div>
+
+              <!-- معاينة الرسالة -->
+              <div id="msgPreviewBox" class="msg-preview-box hidden">
+                <div class="msg-preview-header">
+                  <span><i class="fab fa-whatsapp"></i> معاينة رسالة التذكير</span>
+                  <div style="display:flex;gap:.4rem">
+                    <select id="previewDaysSelect" class="select-input" style="width:auto;padding:.25rem .6rem;font-size:.8rem"
+                      onchange="previewReminderMsg()">
+                      <option value="3">قبل 3 أيام</option>
+                      <option value="1">قبل يوم واحد</option>
+                      <option value="0">يوم الانتهاء</option>
+                    </select>
+                    <button class="icon-btn" onclick="document.getElementById('msgPreviewBox').classList.add('hidden')">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="msg-bubble-wrap">
+                  <div class="msg-bubble" id="msgPreviewText"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ══ تخصيص رسائل واتساب ══ -->
+            <div class="integration-box" style="margin-top:1.25rem">
+              <div class="integration-title">
+                <i class="fas fa-pen-nib" style="color:var(--primary)"></i>
+                تخصيص رسائل واتساب
+              </div>
+
+              <!-- تبويبات -->
+              <div class="template-tabs">
+                <button class="template-tab active" onclick="switchMsgTab('reminder',this)">
+                  🔔 رسالة التذكير
+                </button>
+                <button class="template-tab" onclick="switchMsgTab('expiry',this)">
+                  🔴 رسالة الانتهاء
+                </button>
+                <button class="template-tab" onclick="switchMsgTab('service',this)">
+                  ⭐ استفسار الخدمة
+                </button>
+              </div>
+
+              <!-- المتغيرات -->
+              <div class="template-vars">
+                <label>انقر على متغير لإدراجه في القالب:</label>
+                <span class="var-tag" onclick="insertVar('{اسم}')">{اسم}</span>
+                <span class="var-tag" onclick="insertVar('{اشتراك}')">{اشتراك}</span>
+                <span class="var-tag" onclick="insertVar('{تاريخ_الانتهاء}')">{تاريخ_الانتهاء}</span>
+                <span class="var-tag" onclick="insertVar('{أيام_متبقية}')">{أيام_متبقية}</span>
+                <span class="var-tag" onclick="insertVar('{المتجر}')">{المتجر}</span>
+                <span class="var-tag" onclick="insertVar('{رابط_التجديد}')">{رابط_التجديد}</span>
+                <span class="var-tag" onclick="insertVar('{إيميل_التفعيل}')">{إيميل_التفعيل}</span>
+              </div>
+
+              <!-- محرر + معاينة -->
+              <div class="msg-template-editor">
+                <div class="live-preview-split">
+                  <div>
+                    <textarea id="reminderTemplate" oninput="livePreviewMsg()" style="display:block"></textarea>
+                    <textarea id="expiryTemplate"   oninput="livePreviewMsg()" style="display:none"></textarea>
+                    <textarea id="serviceTemplate"  oninput="livePreviewMsg()" style="display:none"></textarea>
+                    <div class="template-actions">
+                      <button class="btn btn-outline btn-sm" onclick="resetTemplate()">
+                        <i class="fas fa-undo"></i> استعادة الافتراضي
+                      </button>
+                    </div>
+                  </div>
+                  <!-- معاينة مباشرة -->
+                  <div>
+                    <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.4rem;font-weight:600">
+                      <i class="fas fa-eye"></i> معاينة مباشرة
+                      <select id="previewDaysSelect2" style="margin-right:.4rem;font-size:.78rem;padding:.1rem .4rem;border-radius:6px;border:1px solid var(--border)"
+                        onchange="livePreviewMsg()">
+                        <option value="3">قبل 3 أيام</option>
+                        <option value="1">قبل يوم</option>
+                        <option value="0">يوم الانتهاء</option>
+                      </select>
+                    </div>
+                    <div class="msg-bubble-wrap" style="background:#E5DDD5;border-radius:10px;padding:.75rem">
+                      <div class="msg-bubble" id="liveMsgPreview" style="max-width:100%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveGeneralSettings()">
+                <i class="fas fa-save"></i> حفظ الإعدادات
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /settingsPage -->
+
+  </div><!-- /content-area -->
+</div><!-- /mainApp -->
+
+
+<!-- ═══════════════════════════════════════════════
+     المودالات (Modals)
+═══════════════════════════════════════════════════ -->
+
+<!-- ════ مودال إضافة طلب جديد (عميل + اشتراكات) ════ -->
+<div id="orderModal" class="modal-overlay hidden">
+  <div class="modal-box modal-box-lg">
+    <div class="modal-head">
+      <h3 id="orderModalTitle">إضافة طلب جديد</h3>
+      <button class="modal-close" onclick="closeModal('orderModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="max-height:78vh;overflow-y:auto">
+      <input type="hidden" id="ordCustId" />
+
+      <!-- بيانات العميل -->
+      <div class="section-label"><i class="fas fa-user"></i> بيانات العميل</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>اسم العميل *</label>
+          <input type="text" id="ordCustName" placeholder="الاسم الكامل" />
+        </div>
+        <div class="form-group">
+          <label><i class="fab fa-whatsapp"></i> رقم الواتساب *</label>
+          <input type="tel" id="ordCustWhatsapp" placeholder="966512345678" dir="ltr" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-sticky-note"></i> ملاحظات</label>
+        <textarea id="ordCustNotes" placeholder="أي ملاحظات إضافية…" rows="2"></textarea>
+      </div>
+
+      <!-- قسم الاشتراكات -->
+      <div class="section-label" style="margin-top:1.25rem;display:flex;align-items:center;gap:.75rem">
+        <span><i class="fas fa-list"></i> الاشتراكات</span>
+        <button type="button" class="btn btn-sm btn-primary" style="margin-right:auto" onclick="addSubscriptionRow()">
+          <i class="fas fa-plus"></i> إضافة اشتراك آخر
+        </button>
+      </div>
+
+      <div id="subscriptionRowsContainer"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('orderModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveOrder()">
+        <i class="fas fa-save"></i> حفظ الطلب
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ مودال تعديل بيانات العميل ════ -->
+<div id="editCustomerModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>تعديل بيانات العميل</h3>
+      <button class="modal-close" onclick="closeModal('editCustomerModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editCustId" />
+      <div class="form-grid">
+        <div class="form-group">
+          <label><i class="fas fa-user"></i> اسم العميل *</label>
+          <input type="text" id="editCustName" placeholder="الاسم الكامل" />
+        </div>
+        <div class="form-group">
+          <label><i class="fab fa-whatsapp"></i> رقم الواتساب *</label>
+          <input type="tel" id="editCustWhatsapp" placeholder="966512345678" dir="ltr" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-sticky-note"></i> ملاحظات</label>
+        <textarea id="editCustNotes" placeholder="أي ملاحظات إضافية…"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('editCustomerModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveEditCustomer()">
+        <i class="fas fa-save"></i> حفظ
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ مودال تفاصيل العميل (جميع اشتراكاته) ════ -->
+<div id="customerDetailModal" class="modal-overlay hidden">
+  <div class="modal-box modal-box-xl">
+    <div class="modal-head">
+      <h3 id="detailModalTitle">تفاصيل العميل</h3>
+      <button class="modal-close" onclick="closeModal('customerDetailModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="customerDetailBody" style="max-height:80vh;overflow-y:auto">
+      <div class="loading-spin"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ مودال تعديل اشتراك ════ -->
+<div id="editSubscriptionModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>تعديل الاشتراك</h3>
+      <button class="modal-close" onclick="closeModal('editSubscriptionModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editSubId" />
+      <div class="form-grid">
+        <div class="form-group">
+          <label>تاريخ البداية</label>
+          <input type="date" id="editSubStart" oninput="calcEditSubEnd()" />
+        </div>
+        <div class="form-group">
+          <label>تاريخ النهاية</label>
+          <input type="text" id="editSubEnd" class="input-readonly" readonly />
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label style="color:var(--success);font-weight:600">سعر البيع الفعلي ₪ *</label>
+          <input type="number" id="editSubSalePrice" min="0" step="0.01" oninput="calcEditSubProfit()" />
+        </div>
+        <div class="form-group">
+          <label>الحالة</label>
+          <select id="editSubStatus">
+            <option value="active">نشط</option>
+            <option value="expired">منتهي</option>
+            <option value="cancelled">ملغي</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-envelope"></i> إيميل التفعيل <span class="hint-muted">(اختياري)</span></label>
+        <input type="email" id="editSubEmail" placeholder="example@gmail.com" dir="ltr" />
+      </div>
+      <div class="profit-preview-box" id="editSubProfitPreview" style="margin-top:.5rem">الربح: — ₪</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('editSubscriptionModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveEditSubscription()">
+        <i class="fas fa-save"></i> حفظ
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال تسجيل بيع -->
+<div id="saleModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>تسجيل بيع — <span id="saleModalTypeName"></span></h3>
+      <button class="modal-close" onclick="closeModal('saleModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="sale-summary-box">
+        <div class="summary-item">
+          <span>المدة</span>
+          <strong id="saleModalDuration">—</strong>
+        </div>
+        <div class="summary-item green">
+          <span>سعر البيع</span>
+          <strong id="saleModalPrice">—</strong>
+        </div>
+        <div class="summary-item red">
+          <span>التكلفة</span>
+          <strong id="saleModalCost">—</strong>
+        </div>
+        <div class="summary-item teal">
+          <span>الربح</span>
+          <strong id="saleModalProfit">—</strong>
+        </div>
+      </div>
+
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="saleType" id="saleIsNew" value="new" checked />
+          <span><i class="fas fa-user-plus"></i> عميل جديد</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="saleType" id="saleIsExisting" value="existing" />
+          <span><i class="fas fa-user-check"></i> عميل موجود / تجديد</span>
+        </label>
+      </div>
+
+      <!-- بيانات العميل الجديد -->
+      <div id="newCustomerFields">
+        <div class="form-grid">
+          <div class="form-group">
+            <label><i class="fas fa-user"></i> اسم العميل *</label>
+            <input type="text" id="saleCustomerName" placeholder="الاسم الكامل" />
+          </div>
+          <div class="form-group">
+            <label><i class="fab fa-whatsapp"></i> رقم الواتساب *</label>
+            <input type="tel" id="saleCustomerPhone" placeholder="966512345678" dir="ltr" />
+          </div>
+        </div>
+      </div>
+
+      <!-- عميل موجود -->
+      <div id="existingCustomerField" class="hidden">
+        <div class="form-group">
+          <label><i class="fas fa-search"></i> ابحث عن عميل</label>
+          <input type="text" id="saleExistingCustomer" list="saleCustomerList" placeholder="اكتب اسم العميل…" />
+          <datalist id="saleCustomerList"></datalist>
+          <input type="hidden" id="_saleExistingId" />
+        </div>
+        <div class="form-group">
+          <label><i class="fab fa-whatsapp"></i> رقم الواتساب</label>
+          <input type="tel" id="saleCustomerPhone2" placeholder="سيُملأ تلقائياً" dir="ltr" readonly />
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('saleModal')">إلغاء</button>
+      <button class="btn btn-success" onclick="confirmSale()">
+        <i class="fas fa-check-circle"></i> تأكيد البيع
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال نوع اشتراك -->
+<div id="subTypeModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="subTypeModalTitle">إضافة نوع اشتراك</h3>
+      <button class="modal-close" onclick="closeModal('subTypeModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="stId" />
+      <div class="form-group">
+        <label><i class="fas fa-tag"></i> اسم الاشتراك *</label>
+        <input type="text" id="stName" placeholder="مثال: بيسك شهري" />
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-calendar-alt"></i> المدة (بالأشهر) *</label>
+        <select id="stDuration">
+          <option value="-5">5 دقائق (تجربة)</option>
+          <option value="-10">10 دقائق (تجربة)</option>
+          <option value="1" selected>شهر واحد</option>
+          <option value="3">3 أشهر</option>
+          <option value="6">6 أشهر</option>
+          <option value="12">سنة كاملة (12 شهر)</option>
+        </select>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label><i class="fas fa-minus-circle text-red"></i> سعر التكلفة *</label>
+          <input type="number" id="stCost" placeholder="0" min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-plus-circle text-green"></i> سعر البيع *</label>
+          <input type="number" id="stSale" placeholder="0" min="0" step="0.01" />
+        </div>
+      </div>
+      <div class="profit-preview-box" id="stProfitPreview">الربح: 0 ₪</div>
+      <div class="form-group">
+        <label><i class="fas fa-align-right"></i> الوصف</label>
+        <textarea id="stDesc" placeholder="وصف مختصر للاشتراك…"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('subTypeModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveSubType()">
+        <i class="fas fa-save"></i> حفظ
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال مستخدم -->
+<div id="userModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="userModalTitle">إضافة مستخدم</h3>
+      <button class="modal-close" onclick="closeModal('userModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="userId" />
+      <div class="form-grid">
+        <div class="form-group">
+          <label><i class="fas fa-user"></i> الاسم الكامل *</label>
+          <input type="text" id="userName" placeholder="اسم المستخدم" />
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-at"></i> اسم الدخول *</label>
+          <input type="text" id="userUname" placeholder="username" dir="ltr" />
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label><i class="fas fa-lock"></i> كلمة المرور</label>
+          <input type="password" id="userPass" placeholder="اتركه فارغاً للإبقاء" />
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-shield-alt"></i> الدور</label>
+          <select id="userRole">
+            <option value="employee">موظف</option>
+            <option value="admin">مدير</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('userModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveUser()">
+        <i class="fas fa-save"></i> حفظ
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     Toast Notification
+═══════════════════════════════════════════════════ -->
+<div id="toast" class="toast"></div>
+
+
+<!-- ═══════════════════════════════════════════════
+     Scripts
+═══════════════════════════════════════════════════ -->
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/whatsapp.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/customers.js"></script>
+<script src="js/sales.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
