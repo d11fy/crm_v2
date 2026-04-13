@@ -2137,6 +2137,35 @@ body {
   font-weight: 400;
 }
 
+/* ── استيراد Excel ── */
+.import-guide {
+  background: var(--primary-l);
+  border: 1.5px solid #C7D2FE;
+  border-radius: var(--r);
+  padding: .9rem 1rem;
+  font-size: .88rem;
+}
+.import-cols-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .5rem;
+}
+.col-tag {
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 99px;
+  padding: .2rem .7rem;
+  font-size: .78rem;
+  font-family: monospace;
+  color: var(--text);
+}
+.col-tag.required {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+}
+
 /* تجاوب صغير */
 @media (max-width: 600px) {
   .sub-entry-prices {

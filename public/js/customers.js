@@ -664,6 +664,230 @@ function exportCustomersCSV() {
   showToast(`تم تصدير ${allCustomers.length} عميل`, 'success');
 }
 
+/* ════════════════════════════════════════════════════════════
+   استيراد Excel / CSV
+════════════════════════════════════════════════════════════ */
+
+let _importRows = []; /* الصفوف الجاهزة للاستيراد */
+
+/* ─── فتح منتقي الملف ──────────────────────────────── */
+function openImportExcel() {
+  _importRows = [];
+  document.getElementById('excelFileInput').value = '';
+  document.getElementById('importPreviewArea').classList.add('hidden');
+  document.getElementById('importError').classList.add('hidden');
+  document.getElementById('importConfirmBtn').disabled = true;
+  document.getElementById('importModal').classList.remove('hidden');
+  /* نفتح منتقي الملف بعد ظهور المودال */
+  setTimeout(() => document.getElementById('excelFileInput').click(), 200);
+}
+
+/* ─── قراءة وتحليل الملف ───────────────────────────── */
+function handleExcelFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb   = XLSX.read(data, { type: 'array', cellDates: true });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      _parseImportRows(rows);
+    } catch (err) {
+      _showImportError('❌ تعذّر قراءة الملف: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ─── تحليل الصفوف وتطبيق خريطة الأعمدة ──────────── */
+function _parseImportRows(raw) {
+  if (!raw || raw.length === 0) {
+    _showImportError('الملف فارغ أو لا يحتوي على بيانات.');
+    return;
+  }
+
+  /* خريطة الأعمدة المقبولة (عربي وإنجليزي) */
+  const MAP = {
+    name            : ['اسم العميل','الاسم','name','customer name','customer'],
+    whatsapp        : ['واتساب','رقم الواتساب','رقم','whatsapp','phone','mobile'],
+    subscriptionType: ['نوع الاشتراك','الاشتراك','subscription','type','plan'],
+    startDate       : ['تاريخ البداية','البداية','start date','start','تاريخ'],
+    salePrice       : ['سعر البيع','السعر','price','sale price','amount'],
+    activationEmail : ['إيميل التفعيل','إيميل','email','activation email'],
+    notes           : ['ملاحظات','notes','note','remarks'],
+  };
+
+  /* كشف رؤوس الأعمدة */
+  const headers = Object.keys(raw[0]);
+  const colMap  = {};
+  for (const [field, aliases] of Object.entries(MAP)) {
+    const found = headers.find(h =>
+      aliases.some(a => a.toLowerCase() === String(h).toLowerCase().trim())
+    );
+    if (found) colMap[field] = found;
+  }
+
+  if (!colMap.name || !colMap.whatsapp) {
+    _showImportError('❌ لم يتم العثور على عمود "اسم العميل" أو "واتساب". تأكد من أسماء الأعمدة.');
+    return;
+  }
+
+  /* بناء الصفوف النظيفة */
+  _importRows = [];
+  const errors = [];
+
+  raw.forEach((row, i) => {
+    const name     = String(row[colMap.name]     || '').trim();
+    const whatsapp = String(row[colMap.whatsapp] || '').trim().replace(/\s/g, '');
+    if (!name || !whatsapp) {
+      errors.push(`صف ${i + 2}: الاسم أو الواتساب فارغ — تم تجاهله`);
+      return;
+    }
+    _importRows.push({
+      name,
+      whatsapp,
+      subscriptionType: colMap.subscriptionType ? String(row[colMap.subscriptionType] || '').trim() : '',
+      startDate       : colMap.startDate        ? String(row[colMap.startDate]        || '').trim() : '',
+      salePrice       : colMap.salePrice        ? parseFloat(row[colMap.salePrice])   || 0           : 0,
+      activationEmail : colMap.activationEmail  ? String(row[colMap.activationEmail]  || '').trim() : '',
+      notes           : colMap.notes            ? String(row[colMap.notes]            || '').trim() : '',
+    });
+  });
+
+  if (_importRows.length === 0) {
+    _showImportError('❌ لا توجد صفوف صالحة في الملف.' + (errors.length ? '\n' + errors.join('\n') : ''));
+    return;
+  }
+
+  /* عرض المعاينة */
+  _showImportPreview(errors);
+}
+
+/* ─── عرض جدول المعاينة ────────────────────────────── */
+function _showImportPreview(warnings = []) {
+  document.getElementById('importError').classList.add('hidden');
+  document.getElementById('importPreviewArea').classList.remove('hidden');
+
+  const stats = document.getElementById('importStats');
+  stats.innerHTML = `
+    <span style="color:var(--success)"><i class="fas fa-check-circle"></i> ${_importRows.length} صف جاهز للاستيراد</span>
+    ${warnings.length ? `<span style="color:var(--warning);margin-right:.75rem;font-size:.82rem">⚠️ ${warnings.length} صف تم تجاهله</span>` : ''}
+  `;
+
+  document.getElementById('importPreviewHead').innerHTML = `
+    <tr>
+      <th>#</th><th>اسم العميل</th><th>واتساب</th>
+      <th>نوع الاشتراك</th><th>تاريخ البداية</th>
+      <th>سعر البيع</th><th>إيميل التفعيل</th><th>ملاحظات</th>
+    </tr>`;
+
+  const preview = _importRows.slice(0, 50);
+  document.getElementById('importPreviewBody').innerHTML = preview.map((r, i) => `
+    <tr>
+      <td style="color:var(--text-muted)">${i + 1}</td>
+      <td><strong>${esc(r.name)}</strong></td>
+      <td dir="ltr">${esc(r.whatsapp)}</td>
+      <td>${esc(r.subscriptionType || '—')}</td>
+      <td>${esc(r.startDate || '—')}</td>
+      <td>${r.salePrice ? r.salePrice.toLocaleString('ar-SA') + ' ₪' : '—'}</td>
+      <td dir="ltr" style="font-size:.8rem">${r.activationEmail ? esc(r.activationEmail) : '—'}</td>
+      <td style="font-size:.8rem">${esc(r.notes || '—')}</td>
+    </tr>`).join('');
+
+  document.getElementById('importConfirmBtn').disabled = false;
+}
+
+/* ─── رسالة خطأ ─────────────────────────────────────── */
+function _showImportError(msg) {
+  document.getElementById('importPreviewArea').classList.add('hidden');
+  document.getElementById('importConfirmBtn').disabled = true;
+  const el = document.getElementById('importError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+/* ─── تأكيد الاستيراد وحفظ البيانات ────────────────── */
+async function confirmImport() {
+  if (_importRows.length === 0) return;
+
+  const btn = document.getElementById('importConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جارٍ الاستيراد...';
+
+  const types    = await db.getAll('subscriptionTypes');
+  const today    = new Date().toISOString().slice(0, 10);
+  let   imported = 0;
+
+  for (const row of _importRows) {
+    /* إنشاء العميل */
+    const custId = await db.add('customers', {
+      name     : row.name,
+      whatsapp : row.whatsapp,
+      notes    : row.notes,
+      createdAt: new Date().toISOString(),
+      createdBy: Auth.currentUser?.id,
+    });
+
+    /* إذا يوجد نوع اشتراك → إنشاء اشتراك */
+    if (row.subscriptionType) {
+      const matchedType = types.find(t =>
+        t.name.trim().toLowerCase() === row.subscriptionType.toLowerCase()
+      );
+      const startDate = row.startDate || today;
+      const durMonths = matchedType?.durationMonths || 1;
+      const endDate   = addMonths(startDate, durMonths);
+      const costPrice = matchedType?.costPrice || 0;
+      const salePrice = row.salePrice || matchedType?.salePrice || 0;
+
+      await db.add('subscriptions', {
+        customerId          : custId,
+        subscriptionTypeId  : matchedType?.id || null,
+        subscriptionTypeName: row.subscriptionType,
+        durationMonths      : durMonths,
+        startDate,
+        endDate,
+        originalPrice       : matchedType?.salePrice || 0,
+        salePrice,
+        costPrice,
+        profit              : salePrice - costPrice,
+        activationEmail     : row.activationEmail,
+        status              : 'active',
+        createdAt           : new Date().toISOString(),
+        createdBy           : Auth.currentUser?.id,
+      });
+    }
+
+    imported++;
+  }
+
+  closeModal('importModal');
+  showToast(`✅ تم استيراد ${imported} عميل بنجاح`, 'success');
+  _importRows = [];
+
+  await loadCustomers();
+  loadDashboard();
+  WhatsApp.syncCustomers();
+}
+
+/* ─── تحميل نموذج Excel فارغ ────────────────────────── */
+function downloadImportTemplate() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['اسم العميل', 'واتساب', 'نوع الاشتراك', 'تاريخ البداية', 'سعر البيع', 'إيميل التفعيل', 'ملاحظات'],
+    ['محمد أحمد', '966512345678', 'بيسك شهري', '2025-01-01', '100', 'user@gmail.com', ''],
+    ['سارة علي',  '966598765432', 'سنوي',       '2025-02-15', '900', '', 'عميل مميز'],
+  ]);
+
+  /* تنسيق عرض الأعمدة */
+  ws['!cols'] = [20,18,18,16,12,24,20].map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'العملاء');
+  XLSX.writeFile(wb, 'نموذج_استيراد_العملاء.xlsx');
+}
+
 /* ─── تحويل الأشهر إلى تاريخ نهاية ──────────────────── */
 /* months < 0 → تُعامَل كدقائق (قيم اختبار) */
 function addMonths(dateStr, months) {

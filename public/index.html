@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -227,6 +228,11 @@
         <button class="btn btn-outline" onclick="exportCustomersCSV()">
           <i class="fas fa-file-csv"></i> تصدير CSV
         </button>
+        <button class="btn btn-outline" onclick="openImportExcel()" title="استيراد من Excel أو CSV">
+          <i class="fas fa-file-excel" style="color:#10B981"></i> استيراد Excel
+        </button>
+        <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none"
+          onchange="handleExcelFile(event)" />
         <button class="btn btn-primary" onclick="openAddOrder()">
           <i class="fas fa-plus-circle"></i> إضافة طلب جديد
         </button>
@@ -956,6 +962,61 @@
   </div>
 </div>
 
+
+<!-- ════ مودال استيراد Excel ════ -->
+<div id="importModal" class="modal-overlay hidden">
+  <div class="modal-box modal-box-xl">
+    <div class="modal-head">
+      <h3><i class="fas fa-file-excel" style="color:#10B981"></i> استيراد من Excel</h3>
+      <button class="modal-close" onclick="closeModal('importModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="max-height:75vh;overflow-y:auto">
+
+      <!-- إرشادات الأعمدة -->
+      <div class="import-guide">
+        <strong><i class="fas fa-info-circle"></i> الأعمدة المطلوبة في الملف:</strong>
+        <div class="import-cols-grid">
+          <span class="col-tag required">اسم العميل *</span>
+          <span class="col-tag required">واتساب *</span>
+          <span class="col-tag">نوع الاشتراك</span>
+          <span class="col-tag">تاريخ البداية</span>
+          <span class="col-tag">سعر البيع</span>
+          <span class="col-tag">إيميل التفعيل</span>
+          <span class="col-tag">ملاحظات</span>
+        </div>
+        <p style="margin-top:.5rem;font-size:.8rem;color:var(--text-muted)">
+          * الحقول المطلوبة فقط إلزامية. أسماء الأعمدة يجب أن تكون في الصف الأول.
+        </p>
+        <button class="btn btn-sm btn-outline" style="margin-top:.5rem" onclick="downloadImportTemplate()">
+          <i class="fas fa-download"></i> تحميل نموذج Excel
+        </button>
+      </div>
+
+      <!-- معاينة البيانات -->
+      <div id="importPreviewArea" class="hidden" style="margin-top:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <div id="importStats" style="font-weight:600;font-size:.95rem"></div>
+          <div style="font-size:.8rem;color:var(--text-muted)">معاينة أول 50 صف</div>
+        </div>
+        <div class="table-responsive">
+          <table id="importPreviewTable">
+            <thead id="importPreviewHead"></thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- خطأ -->
+      <div id="importError" class="hidden" style="background:var(--danger-l);color:#991B1B;padding:.75rem 1rem;border-radius:var(--r-sm);margin-top:.75rem;font-size:.88rem"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('importModal')">إلغاء</button>
+      <button class="btn btn-success" id="importConfirmBtn" onclick="confirmImport()" disabled>
+        <i class="fas fa-file-import"></i> استيراد البيانات
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════
      Toast Notification
